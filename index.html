@@ -444,10 +444,18 @@ function loadLanguage(){
    ============================================================ */
 const BASE_URL = "https://jfzfzuzilvwvyvgyimkr.supabase.co";
 const API_KEY  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpmemZ6dXppbHZ3dnl2Z3lpbWtyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE5NzgyOTUsImV4cCI6MjEwNzU1NDI5NX0.boMhgWUXFLiZ91jxmmzfSpgfbBrHXPN1UmNK5sb6jlk";
-const TABLE_NAME = "转速数据";
+
+/* 每个机台对应一张独立表 */
+const TABLE_MAP = {
+  B1004: "B1004",
+  B1005: "B1005",
+  B1006: "B1006"
+};
+function getTableName(machineType){
+  return TABLE_MAP[(machineType||"").toUpperCase()] || "B1004";
+}
 
 const FIELD_ENC = {
-  "转速数据":"%E8%BD%AC%E9%80%9F%E6%95%B0%E6%8D%AE",
   "机台":"%E6%9C%BA%E5%8F%B0",
   "规格":"%E8%A7%84%E6%A0%BC"
 };
@@ -521,9 +529,9 @@ function buildQueryString(){
   return parts.join("&");
 }
 
-async function fetchPage(query, limit, offset){
+async function fetchPage(query, limit, offset, tableName){
   const select = API_SELECT_COLUMNS.map(fieldEnc).join(",");
-  const url = `${BASE_URL}/rest/v1/${fieldEnc(TABLE_NAME)}?select=${select}&${query}&limit=${limit}&offset=${offset}`;
+  const url = `${BASE_URL}/rest/v1/${fieldEnc(tableName)}?select=${select}&${query}&limit=${limit}&offset=${offset}`;
   const res = await fetch(url, {
     headers:{
       "apikey": API_KEY,
@@ -545,7 +553,8 @@ async function fetchPage(query, limit, offset){
    ============================================================ */
 const state = {
   page: 1, limit: PAGE_LIMIT, hasMore: false, loading: false,
-  query: "", machineType: "", inputFocused: false, searchSeq: 0, lastRows: null
+  query: "", machineType: "", tableName: "",
+  inputFocused: false, searchSeq: 0, lastRows: null
 };
 const $ = id => document.getElementById(id);
 
@@ -664,6 +673,7 @@ async function doSearch({ reset = true, trigger = "user" } = {}){
   const seq = ++state.searchSeq;
 
   state.machineType = getMachineType();
+  state.tableName   = getTableName(state.machineType);
   state.query = buildQueryString();
   if(reset) state.page = 1;
   const offset = (state.page - 1) * state.limit;
@@ -675,7 +685,7 @@ async function doSearch({ reset = true, trigger = "user" } = {}){
   setStatus(t("loading"), "loading");
 
   try{
-    const data = await fetchPage(state.query, state.limit, offset);
+    const data = await fetchPage(state.query, state.limit, offset, state.tableName);
     if(seq !== state.searchSeq) return;
 
     state.hasMore = data.length === state.limit;
